@@ -1,0 +1,10 @@
+apiVersion: v1
+data:
+  GROUP_ID: 
+  RESYNC: 30
+  SOURCE_DIR: /opengrok/src
+  SRC_ROOT: /opengrok/src/vistaprint-org
+kind: ConfigMap
+metadata:
+  name: opengrok-config
+  namespace: opengrok

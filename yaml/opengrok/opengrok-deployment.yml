@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opengrok
+  namespace: opengrok
+  labels:
+    app: opengrok
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: opengrok
+  template:
+    metadata:
+      labels:
+        app: opengrok
+    spec:
+      volumes:
+        - name: opengrok-data
+          persistentVolumeClaim:
+            claimName: opengrok-data
+      initContainers:
+      - name: opengrok-initial-sync
+        image: registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-synchro
+        volumeMounts:
+        - name: opengrok-data
+          mountPath: /opengrok/src
+        imagePullPolicy: Always
+        env:
+        - name: GITLAB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: opengrok-secrets
+              key: GITLAB_TOKEN
+        - name: GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: opengrok-config
+              key: GROUP_ID
+        - name: SOURCE_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: opengrok-config
+              key: SOURCE_DIR
+        - name: SYNC_TYPE
+          value: "INITIAL"
+      containers:
+      - name: opengrok-app
+        ports:
+        - containerPort: 8080
+          name: opengrokapp
+          protocol: TCP
+        image: registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-app
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          successThreshold: 1
+        volumeMounts:
+        - name: opengrok-data
+          mountPath: /opengrok/src
+        imagePullPolicy: Always
+        env:
+        - name: SOURCE_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: opengrok-config
+              key: SOURCE_DIR
+        - name: SRC_ROOT
+          valueFrom:
+            configMapKeyRef:
+              name: opengrok-config
+              key: SRC_ROOT
+      imagePullSecrets:
+      - name: regcred
+  restartPolicy: Always

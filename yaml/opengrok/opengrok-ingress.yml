@@ -1,0 +1,24 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    certmanager.k8s.io/acme-http01-edit-in-place: "true"
+    certmanager.k8s.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/auth-signin: https://$host/oauth2/start
+    nginx.ingress.kubernetes.io/auth-url: https://$host/oauth2/auth
+  name: external-auth-oauth2
+  namespace: opengrok
+spec:
+  tls:
+    - hosts:
+      - opengrok.vips.vistaprint.io
+      secretName: opengrok-tls
+  rules:
+  - host: opengrok.vips.vistaprint.io
+    http:
+      paths:
+      - backend:
+          serviceName: opengrok
+          servicePort: 8080
+        path: /

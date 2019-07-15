@@ -1,0 +1,57 @@
+variables:
+  PACKAGE_PATH: /go/src/gitlab.com/opengrok/opengrok-go-docker-gitlab
+
+stages:
+  - dependencies
+  - build_sync
+  - build_opengrok
+
+# A hack to make Golang-in-Gitlab happy
+.anchors:
+  - &inject-gopath
+      mkdir -p $(dirname ${PACKAGE_PATH})
+      && ln -s ${CI_PROJECT_DIR} ${PACKAGE_PATH}
+      && cd ${PACKAGE_PATH}
+
+dependencies:
+  stage: dependencies
+  image: golang:latest
+  before_script:
+    - curl -sSL https://github.com/golang/dep/releases/download/v0.5.0/dep-linux-amd64 -o /go/bin/dep
+    - chmod +x /go/bin/dep
+    - *inject-gopath
+  script:
+    - dep init
+    - dep ensure -v -vendor-only
+  artifacts:
+    name: "vendor-$CI_PIPELINE_ID"
+    paths:
+      - vendor/
+    expire_in: 1 hour
+
+build_sync:
+  stage: build_sync
+  dependencies:
+    - dependencies
+  image: docker:stable
+  services:
+    - docker:dind
+  before_script:
+    - docker login registry.gitlab.com -u gitlab-ci-token -p $CI_BUILD_TOKEN
+  script:
+    - docker build -t registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-synchro:$CI_PIPELINE_ID -t registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-synchro:latest .
+    - docker push registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-synchro:$CI_PIPELINE_ID
+    - docker push registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-synchro:latest
+  
+build_opengrok:
+  stage: build_opengrok
+  image: docker:stable
+  services:
+    - docker:dind
+  before_script:
+    - docker login registry.gitlab.com -u gitlab-ci-token -p $CI_BUILD_TOKEN
+    - cd ./App/opengrok
+  script:
+    - docker build -t registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-app:$CI_PIPELINE_ID -t registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-app:latest .
+    - docker push registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-app:$CI_PIPELINE_ID
+    - docker push registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-app:latest

@@ -1,0 +1,51 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: opengrok-sync
+  namespace: opengrok
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Replace
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          volumes:
+            - name: opengrok-data
+              persistentVolumeClaim:
+                claimName: opengrok-data
+          containers:
+          - name: opengrok-sync
+            image: registry.gitlab.com/vistaprint-org/technology-operations/developer-experience/tanit/opengrok/opengrok-synchro
+            lifecycle:
+              postStart:
+                exec:
+                  command: ["/bin/sh","-c","touch /opengrok/src/lock-opengrok-sync"]
+              preStop:
+                exec:
+                  command: ["/bin/sh","-c","rm -f /opengrok/src/lock-opengrok-sync"]
+            volumeMounts:
+            - name: opengrok-data
+              mountPath: /opengrok/src
+            imagePullPolicy: Always
+            env:
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: opengrok-secrets
+                  key: GITLAB_TOKEN
+            - name: GROUP_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: opengrok-config
+                  key: GROUP_ID
+            - name: SOURCE_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: opengrok-config
+                  key: SOURCE_DIR
+            - name: SYNC_TYPE
+              value: "SCHEDULED"
+          imagePullSecrets:
+          - name: regcred
+          restartPolicy: OnFailure
